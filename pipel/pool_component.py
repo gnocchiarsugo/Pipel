@@ -5,10 +5,9 @@ from typing_extensions import override
 from logging import Logger
 import uuid
 
-from .pipeline_component import UnsafePipelineComponent
 from .pipel_types import EXEC_MODE
 
-class PickablePipelineComponent(ABC):
+class PicklablePipelineComponent(ABC):
 
     def __init__(self, *args, **kwargs):
         self.id = uuid.uuid4().hex  
@@ -42,12 +41,18 @@ class PickablePipelineComponent(ABC):
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(id={self.id})'
 
+    def deepcopy(self):
+        """
+            Returns a new instance of the same derivative class.
+        """
+        return self.__class__()
+
 class PipelWorker(Process):
     """
-        Simple wrapper to UnsafePipelineComponent for working in parallel
+        Simple wrapper to Picka for working in parallel
     """
     # Component behaviour to run
-    component: UnsafePipelineComponent
+    component: PicklablePipelineComponent
     worker_id: int
     # Input queue
     input_queue: Queue
@@ -57,7 +62,7 @@ class PipelWorker(Process):
     status_queue: Queue
     
     def __init__(self, 
-                component:UnsafePipelineComponent, 
+                component:PicklablePipelineComponent, 
                 worker_id: int,
                 input_queue: Queue,       
                 output_queue: Queue,       
@@ -94,8 +99,8 @@ class PipelWorker(Process):
         # self._closed = True
         # self._popen = False
             
-class PipelPool(PickablePipelineComponent):
-    component: PickablePipelineComponent
+class PipelPool(PicklablePipelineComponent):
+    component: PicklablePipelineComponent
     len_workers: int
     input_queues: List[Queue]
     workers: List[PipelWorker]
@@ -104,7 +109,7 @@ class PipelPool(PickablePipelineComponent):
     available: Dict[int, bool]
     logger: Optional[Logger]
     
-    def __init__(self, component:PickablePipelineComponent, *args, **kwargs):
+    def __init__(self, component:PicklablePipelineComponent, *args, **kwargs):
         super().__init__(*args, cache_size=0, **kwargs)  
         self.component = component
         self.len_workers = kwargs.get('init_workers') or 5
@@ -162,7 +167,7 @@ class PipelPool(PickablePipelineComponent):
 
         
 __all__ = [
-    'PickablePipelineComponent',
+    'PicklablePipelineComponent',
     'PipelWorker',
     'PipelPool'
 ]

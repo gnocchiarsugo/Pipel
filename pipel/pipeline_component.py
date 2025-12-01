@@ -20,7 +20,6 @@ class UnsafePipelineComponent(ABC):
             return tup, dic
         return wrapper
             
-    
     def __init__(self, *args, **kwargs):
         self.logger = kwargs.get('logger')
         self.cache_size = kwargs.get('cache_size') or 0
@@ -86,6 +85,16 @@ class UnsafePipelineComponent(ABC):
         else:
             raise ValueError('exec_mode must be either \'sync\' or \'async\'.')        
 
+    def deepcopy(self):
+        """
+            Returns a new instance of the same derivative class.
+        """
+        return self.__class__(
+            logger = self.logger,
+            logger_decorator = self.__logger_decorator, 
+            cache_size = self.cache_size,
+        )
+
 class PipelineComponent(UnsafePipelineComponent):
     """
         The OG component
@@ -116,9 +125,6 @@ class PipelineComponent(UnsafePipelineComponent):
     @abstractmethod
     def validate_output(self, *args, **kwargs):
         assert 1 != 1
-        
-        
-        
         
         
 __all__ = [
