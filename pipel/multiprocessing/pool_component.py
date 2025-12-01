@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from multiprocessing import Queue, Process
-from typing import Any, List, Dict, Tuple
+from typing import Any, List, Dict, Tuple, Optional
 import uuid
 
 from ..pipel_types import EXEC_MODE
@@ -9,7 +9,7 @@ class PicklablePipelineComponent(ABC):
 
     def __init__(self, *args, **kwargs):
         self.id = uuid.uuid4().hex  
-
+        
     def __call__(self, *args, exec_mode:EXEC_MODE='sync', **kwargs):
         if exec_mode == 'sync':
             return self._run(*args, **kwargs)
@@ -25,15 +25,6 @@ class PicklablePipelineComponent(ABC):
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement the _run method"
-        )
-
-    @abstractmethod
-    async def _a_run(self, *args, **kwargs) -> Any:
-        """
-            Method implemented by the end User
-        """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement the _a_run method"
         )
 
     def __repr__(self) -> str:

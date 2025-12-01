@@ -19,14 +19,9 @@ class ConstrainedPipeline(list, ABC):
         self.__validate_input(pipes)
         super().__init__(pipes)
     
-    @override   
-    def sort(self, *args, **kwargs) -> None:
-        raise NotImplementedError("Sort function currently not implemented.")
-
     @override
-    def __setitem__(self, key, item) -> None:
-        self.__validate_input(item)
-        super().__setitem__(key, item)
+    def copy(self):
+        return self.__class__(super().copy())
     
     @override
     def append(self, item) -> None:
@@ -39,7 +34,16 @@ class ConstrainedPipeline(list, ABC):
     def extend(self, iterable) -> None:
         self.__validate_input(iterable)
         super().extend(iterable)
-        
+    
+    @override   
+    def sort(self, *args, **kwargs) -> None:
+        raise NotImplementedError("Sort function currently not implemented.")
+
+    @override
+    def __setitem__(self, key, item) -> None:
+        self.__validate_input(item)
+        super().__setitem__(key, item)
+    
     @override
     def __add__(self, other):
         self.__validate_input(other)
@@ -51,6 +55,18 @@ class ConstrainedPipeline(list, ABC):
         self.__validate_input(value)
         # result = super().__iadd__(value)
         return self.__class__(super().__iadd__(value))
+    
+    @override
+    def __mul__(self, value):
+        return self.__class__(super().__mul__(value))
+    
+    @override
+    def __rmul__(self, value):
+        return self.__class__(super().__rmul__(value))
+    
+    @override
+    def __imul__(self, value):
+        return self.__class__(super().__imul__(value))
     
     @override
     def __str__(self) -> str:
