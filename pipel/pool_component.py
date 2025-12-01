@@ -6,6 +6,7 @@ from logging import Logger
 import uuid
 
 from .pipel_types import EXEC_MODE
+from .pipeline_component import UnsafePipelineComponent
 
 class PicklablePipelineComponent(ABC):
 
@@ -49,7 +50,7 @@ class PicklablePipelineComponent(ABC):
 
 class PipelWorker(Process):
     """
-        Simple wrapper to Picka for working in parallel
+        Simple wrapper to PicklablePipelineComponent for working in parallel
     """
     # Component behaviour to run
     component: PicklablePipelineComponent
@@ -75,10 +76,6 @@ class PipelWorker(Process):
         self.output_queue = output_queue
         self.status_queue = status_queue
         
-        # from inheritance
-        # self._closed = False
-        # self._popen = None
-        
     @override
     def run(self) -> None:
         """
@@ -95,11 +92,8 @@ class PipelWorker(Process):
             
             tup, dic = self.component(*__input_tup, **__input_dic)
             self.output_queue.put((self.worker_id, tup, dic))
-        self.output_queue.put((self.worker_id, 'STOPPED'))
-        # self._closed = True
-        # self._popen = False
             
-class PipelPool(PicklablePipelineComponent):
+class PipelPool(UnsafePipelineComponent):
     component: PicklablePipelineComponent
     len_workers: int
     input_queues: List[Queue]
@@ -116,7 +110,6 @@ class PipelPool(PicklablePipelineComponent):
         self.input_queues = kwargs.get('input_queues') or [Queue() for _ in range(self.len_workers)]
         self.output_queue = kwargs.get('output_queue') or Queue()
         self.status_queue = kwargs.get('status_queue') or Queue()
-        self.logger = kwargs.get('logger') or None
         
         self.workers = []
         for worker_id in range(self.len_workers):
@@ -159,10 +152,9 @@ class PipelPool(PicklablePipelineComponent):
             self.input_queues[worker_id].put('STOP_TOKEN')
         latch:int = self.len_workers
         while latch > 0:
-            worker_id, status = self.output_queue.get()
-            # There is no possiblity of worker sending multipler 'STOPPED'
-            if status == 'STOPPED':
-                latch -= 1
+            for worker_id, worker in enumerate(self.workers):
+                if not worker.is_alive():
+                    latch -= 1
         
 
         
