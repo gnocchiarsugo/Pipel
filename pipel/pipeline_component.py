@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
-from logging import Logger
 from .pipel_types import EXEC_MODE
 from functools import lru_cache, wraps
 import uuid
@@ -9,7 +8,7 @@ class UnsafePipelineComponent(ABC):
     """
         Pipeline component used for quick prototyping
     """
-    logger: Optional[Logger]
+    logger: Optional[Any]
     cache_size: Optional[int]
     
     @staticmethod

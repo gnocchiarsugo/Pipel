@@ -1,12 +1,9 @@
 from abc import ABC, abstractmethod
 from multiprocessing import Queue, Process
-from typing import Any, List, Dict, Optional
-from typing_extensions import override
-from logging import Logger
+from typing import Any, List, Dict, Tuple
 import uuid
 
 from ..pipel_types import EXEC_MODE
-from ..pipeline_component import UnsafePipelineComponent
 
 class PicklablePipelineComponent(ABC):
 
@@ -47,114 +44,60 @@ class PicklablePipelineComponent(ABC):
             Returns a new instance of the same derivative class.
         """
         return self.__class__()
-
-class PipelWorker(Process):
-    """
-        Simple wrapper to PicklablePipelineComponent for working in parallel
-    """
-    # Component behaviour
-    component: PicklablePipelineComponent
-    worker_id: int
-    input_queue: Queue
-    output_queue: Queue
-    status_queue: Queue
     
-    def __init__(self, 
-                component:PicklablePipelineComponent, 
-                worker_id: int,
-                input_queue: Queue,       
-                output_queue: Queue,       
-                status_queue: Queue       
-            ):
-        super().__init__()
-        self.component = component
-        self.worker_id = worker_id
-        self.input_queue = input_queue
-        self.output_queue = output_queue
-        self.status_queue = status_queue
-        
-    @override
-    def run(self) -> None:
-        """
-            Process Loop.
-            Returns True when is successfully stopped
-        """
-        
-        while True:
-            self.status_queue.put((self.worker_id, "available"))
-            job = self.input_queue.get()
-            if job == "STOP_TOKEN":
-                break
-            __input_tup, __input_dic = job
-            
-            tup, dic = self.component(*__input_tup, **__input_dic)
-            self.output_queue.put((self.worker_id, tup, dic))
-            
-class PipelPool(UnsafePipelineComponent):
+class PipelPool:
     component: PicklablePipelineComponent
     len_workers: int
-    input_queues: List[Queue]
-    workers: List[PipelWorker]
-    output_queue: Queue
-    status_queue: Queue
-    available: Dict[int, bool]
-    logger: Optional[Logger]
+    in_queue: Queue
+    workers: List[Process]
+    out_queue: Queue
     
     def __init__(self, component:PicklablePipelineComponent, *args, **kwargs):
-        super().__init__(*args, cache_size=0, **kwargs)  
         self.component = component
         self.len_workers = kwargs.get('init_workers') or 5
-        self.input_queues = kwargs.get('input_queues') or [Queue() for _ in range(self.len_workers)]
-        self.output_queue = kwargs.get('output_queue') or Queue()
-        self.status_queue = kwargs.get('status_queue') or Queue()
+        self.out_queue = kwargs.get('out_queue') or Queue()
         
+        self.in_queue = Queue()
         self.workers = []
-        for worker_id in range(self.len_workers):
-            w = PipelWorker(
-                    self.component, 
-                    worker_id,
-                    self.input_queues[worker_id], 
-                    self.output_queue,
-                    self.status_queue
-                )
-            w.start()
-            self.workers.append(w)
-        self.available = {i: False for i in range(self.len_workers)} 
         
-    # Run logic
-    
-    @override
-    def _run(self, *args, **kwargs):
-        worker_id, _ = self.status_queue.get() #block=True, timeout=None
-        self.input_queues[worker_id].put((args, kwargs))
-        self.available[worker_id] = False
-        _, tup, dic = self.output_queue.get()
-        self.close()
-        return tup, dic 
-    
-    @override
-    def _a_run(self, *args, **kwargs):
-        worker_id, _ = self.status_queue.get() #block=True, timeout=None
-        self.input_queues[worker_id].put((args, kwargs))
-        self.available[worker_id] = False
-        _, tup, dic = self.output_queue.get()
-        self.close()
-        return tup, dic 
+        for worker_id in range(self.len_workers):
+            proc = Process(target=self._pool_connector, 
+                           args=(self.component, self.in_queue, self.out_queue, worker_id)
+                    )
+            proc.start()
+            self.workers.append(proc)
+            
+    @staticmethod
+    def _pool_connector(func, in_queue, out_queue, worker_id):
+        while True:
+            job = in_queue.get()
+            __input_tup, __input_dic = job
+            tup, dic = func(*__input_tup, **__input_dic)
+            out_queue.put((worker_id, tup, dic))
+        
+    def submit(self, *args, **kwargs) -> None:
+        self.in_queue.put((args, kwargs))  
+        
+    def get(self) -> Tuple[int, Tuple[Any], Dict[str, Any]]:
+        """
+            Returns one output from the queue
+        """
+        return self.out_queue.get()
     
     # Be careful when closing while running, the results are discarded
     # After implementing the Manager, report all results to it
     def close(self):
         for worker_id in range(self.len_workers):
-            self.input_queues[worker_id].put('STOP_TOKEN')
+            # self.input_queues[worker_id].put('STOP_TOKEN')
+            self.workers[worker_id].terminate()
         latch:int = self.len_workers
         while latch > 0:
-            for worker_id, worker in enumerate(self.workers):
+            for worker in self.workers:
                 if not worker.is_alive():
                     latch -= 1
 
         
 __all__ = [
     'PicklablePipelineComponent',
-    'PipelWorker',
     'PipelPool'
 ]
