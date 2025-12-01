@@ -5,8 +5,8 @@ from typing_extensions import override
 from logging import Logger
 import uuid
 
-from .pipel_types import EXEC_MODE
-from .pipeline_component import UnsafePipelineComponent
+from ..pipel_types import EXEC_MODE
+from ..pipeline_component import UnsafePipelineComponent
 
 class PicklablePipelineComponent(ABC):
 
@@ -52,14 +52,11 @@ class PipelWorker(Process):
     """
         Simple wrapper to PicklablePipelineComponent for working in parallel
     """
-    # Component behaviour to run
+    # Component behaviour
     component: PicklablePipelineComponent
     worker_id: int
-    # Input queue
     input_queue: Queue
-    # Intake queue
     output_queue: Queue
-    # Intake queue
     status_queue: Queue
     
     def __init__(self, 
@@ -146,7 +143,6 @@ class PipelPool(UnsafePipelineComponent):
     
     # Be careful when closing while running, the results are discarded
     # After implementing the Manager, report all results to it
-    # and filter for 'STOPPED'
     def close(self):
         for worker_id in range(self.len_workers):
             self.input_queues[worker_id].put('STOP_TOKEN')
@@ -155,7 +151,6 @@ class PipelPool(UnsafePipelineComponent):
             for worker_id, worker in enumerate(self.workers):
                 if not worker.is_alive():
                     latch -= 1
-        
 
         
 __all__ = [
