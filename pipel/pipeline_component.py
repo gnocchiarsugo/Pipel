@@ -117,20 +117,11 @@ class PipelineComponent(UnsafePipelineComponent):
     def validate_output(self, *args, **kwargs):
         assert 1 != 1
         
-class PipelineComponentPool:
-    component: UnsafePipelineComponent
-    
-    def __init__(self, component:UnsafePipelineComponent, **kwargs):
-        if component is None:
-            raise ValueError('The component can\'t be None.')
-        # Component to run
-        self.component = component
-        # Max number of processes to run simultaneously
-        self.__pool_size = kwargs.get('pool_size') or 5
         
         
         
         
-    
-
-        
+__all__ = [
+    'UnsafePipelineComponent',
+    'PipelineComponent'
+]

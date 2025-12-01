@@ -83,3 +83,8 @@ class SequentialPipeline(ConstrainedPipeline):
             _args, _kwargs = pipe(*_args, **_kwargs)
         return _args, _kwargs
 
+
+__all__ = [
+    'ConstrainedPipeline',
+    'SequentialPipeline'
+]

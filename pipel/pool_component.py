@@ -161,4 +161,8 @@ class PipelPool(PickablePipelineComponent):
         
 
         
-    
+__all__ = [
+    'PickablePipelineComponent',
+    'PipelWorker',
+    'PipelPool'
+]
