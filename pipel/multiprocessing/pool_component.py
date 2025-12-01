@@ -96,6 +96,15 @@ class PipelPool:
                 if not worker.is_alive():
                     latch -= 1
 
+    def __len__(self):
+        return self.len_workers
+    
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
         
 __all__ = [
     'PicklablePipelineComponent',
