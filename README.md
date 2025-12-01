@@ -1,2 +1,3 @@
-# Pipel
-Data pipeline framework
+# Pipel - A Modular Data Pipeline Framework
+
+Coming Soon...
