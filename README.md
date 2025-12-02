@@ -72,7 +72,7 @@ pipeline = SequentialPipeline([Adder(), Multiplier()])
 - Pop
 - And all others Python list methods  
 
-Comparisons between Pipes is manged by the `__eq__` method of your pipe.
+Comparisons between Pipes is manged by the `__eq__` method of your PipelineComponent.
 
 
 

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from multiprocessing import Queue, Process
-from typing import Any, List, Dict, Tuple, Optional
+import queue 
+from typing import Any, List, Dict, Tuple
 import uuid
 
 from ..pipel_types import EXEC_MODE
@@ -40,55 +41,98 @@ class PipelPool:
     component: PicklablePipelineComponent
     len_workers: int
     in_queue: Queue
-    workers: List[Process]
     out_queue: Queue
+    event_queue: Queue
+    workers: List[Process]
     
     def __init__(self, component:PicklablePipelineComponent, *args, **kwargs):
+        self.__num_workers = kwargs.get('num_workers') or 5
         self.component = component
-        self.len_workers = kwargs.get('init_workers') or 5
         self.out_queue = kwargs.get('out_queue') or Queue()
+        self.event_queue = kwargs.get('event_queue') or Queue()
         
         self.in_queue = Queue()
         self.workers = []
         
-        for worker_id in range(self.len_workers):
-            proc = Process(target=self._pool_connector, 
-                           args=(self.component, self.in_queue, self.out_queue, worker_id)
-                    )
-            proc.start()
-            self.workers.append(proc)
+        self.__init_workers()
             
     @staticmethod
-    def _pool_connector(func, in_queue, out_queue, worker_id):
+    def _pool_connector(func, in_queue: Queue, out_queue:Queue, event_queue:Queue):
         while True:
-            job = in_queue.get()
-            __input_tup, __input_dic = job
-            tup, dic = func(*__input_tup, **__input_dic)
-            out_queue.put((worker_id, tup, dic))
+            try:
+                job = in_queue.get(timeout=1)
+                __input_tup, __input_dic = job
+                tup, dic = func(*__input_tup, **__input_dic)
+                out_queue.put((tup, dic))
+                print(f'{tup}, {dic}')
+            except queue.Empty:
+                pass
+            try:
+                event_queue.get(block=False)
+                print('Exited')
+                break
+            except queue.Empty:
+                pass
+            
         
-    def submit(self, *args, **kwargs) -> None:
+    def put(self, *args, **kwargs) -> None:
         self.in_queue.put((args, kwargs))  
         
-    def get(self) -> Tuple[int, Tuple[Any], Dict[str, Any]]:
+    def get(self) -> Tuple[Tuple[Any], Dict[str, Any]]:
         """
             Returns one output from the queue
         """
         return self.out_queue.get()
     
-    # Be careful when closing while running, the results are discarded
-    # After implementing the Manager, report all results to it
+    def __init_workers(self) -> None:
+        for _ in range(self.__num_workers):
+            proc = Process(target=self._pool_connector, 
+                           args=(self.component, self.in_queue, self.out_queue, self.event_queue)
+                    )
+            proc.start()
+            self.workers.append(proc)
+
+    def refresh(self, num_workers=0) -> Tuple[Queue, Queue]:
+        """
+            Closes the Pool, clears the workers list and reinits them
+            Returns the input and output queues
+        """
+        self.close()
+        self.workers.clear()
+        self.__num_workers = num_workers
+        self.__init_workers()
+        return self.in_queue, self.out_queue
+
     def close(self):
-        for worker_id in range(self.len_workers):
-            # self.input_queues[worker_id].put('STOP_TOKEN')
-            self.workers[worker_id].terminate()
-        latch:int = self.len_workers
+        self.remove_workers(self.__num_workers)
+
+    def remove_workers(self, amount:int):
+        """Terminates the workers gracefully"""
+        amount = min(self.__num_workers, amount)
+        for _ in range(amount):
+            self.event_queue.put(None)
+            
+        latch:int = amount
         while latch > 0:
-            for worker in self.workers:
+            for i, worker in enumerate(self.workers):
                 if not worker.is_alive():
+                    self.workers.pop(i)
                     latch -= 1
+        self.__num_workers -= amount
+
+    def add_workers(self, amount:int):
+        if amount <= 0:
+            raise ValueError(f'Amount must be positive. Found {amount}')
+        for _ in range(amount):
+            proc = Process(target=self._pool_connector, 
+                args=(self.component, self.in_queue, self.out_queue, self.event_queue)
+                    )
+            proc.start()
+            self.workers.append(proc)
+        self.__num_workers += amount
 
     def __len__(self):
-        return self.len_workers
+        return self.__num_workers
     
     def __enter__(self):
         return self

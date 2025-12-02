@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Any, Tuple, Dict
 from typing_extensions import override
-from .pipeline_component import PipelineComponent
+from .pipeline_component import PipelineComponent, UnsafePipelineComponent
 from .pipel_types import EXEC_MODE
 
 class ConstrainedPipeline(list, ABC):
@@ -98,6 +98,9 @@ class SequentialPipeline(ConstrainedPipeline):
             _kwargs.update({'exec_mode':exec_mode})
             _args, _kwargs = pipe(*_args, **_kwargs)
         return _args, _kwargs
+
+
+
 
 
 __all__ = [
