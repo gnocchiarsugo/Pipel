@@ -121,8 +121,8 @@ class PipelPool:
         self.event_queue = Queue()
         self.__init_workers(num_workers)
 
-    def close(self):
-        self.remove_workers(len(self.workers))
+    def close(self, force:bool = False):
+        self.remove_workers(len(self.workers) ,force=force)
         try:
             self.in_queue.close() 
             self.in_queue.join_thread()
@@ -135,7 +135,7 @@ class PipelPool:
         except:
             pass
 
-    def remove_workers(self, amount:int):
+    def remove_workers(self, amount:int, force:bool=False):
         """Terminates the workers gracefully"""
         amount = min(len(self.workers), amount)
         
@@ -144,12 +144,23 @@ class PipelPool:
         for _ in range(amount):
             self.event_queue.put(None)
             
-        # Wait for the workers to terminate
         terminated = []
-        for proc in self.workers:
-            proc.join(timeout=self.__job_timeout + 1)
-            if not proc.is_alive():
-                terminated.append(proc)
+        if force:
+            for i in range(amount):
+                self.workers[i].kill()
+                terminated.append(self.workers[i])
+        else:
+            # Wait for the workers to terminate
+            latch:int = amount
+            while latch > 0:
+                for proc in self.workers:
+                    proc.join(timeout=self.__job_timeout + 1)
+                    if not proc.is_alive():
+                        terminated.append(proc)
+                        latch -= 1
+                    else:
+                        continue
+            
 
         # Pop the terminated workers from the list
         for t in terminated:
