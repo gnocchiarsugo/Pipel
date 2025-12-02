@@ -109,6 +109,7 @@ class PipelPool:
 
     def refresh(self, 
                 num_workers = 1,
+                in_queue = None,
                 out_queue = None
             ) -> None:
         self.close()
@@ -116,7 +117,7 @@ class PipelPool:
         # refresh using an external out_queue or not
         self.__out_queue_external_init = True if out_queue else False
         self.out_queue = out_queue or Queue()
-        self.in_queue = Queue()
+        self.in_queue = in_queue or Queue()
         self.event_queue = Queue()
         self.__init_workers(num_workers)
 
