@@ -14,8 +14,6 @@ class PicklablePipelineComponent(ABC):
     def __call__(self, *args, exec_mode:EXEC_MODE='sync', **kwargs):
         if exec_mode == 'sync':
             return self._run(*args, **kwargs)
-        elif exec_mode == 'async':
-            return self._a_run(*args, **kwargs)
         else:
             raise ValueError('exec_mode must be either \'sync\' or \'async\'.')
     
@@ -64,12 +62,10 @@ class PipelPool:
                 __input_tup, __input_dic = job
                 tup, dic = func(*__input_tup, **__input_dic)
                 out_queue.put((tup, dic))
-                print(f'{tup}, {dic}')
             except queue.Empty:
                 pass
             try:
                 event_queue.get(block=False)
-                print('Exited')
                 break
             except queue.Empty:
                 pass
