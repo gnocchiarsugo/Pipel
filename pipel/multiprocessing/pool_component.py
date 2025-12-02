@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from multiprocessing import Queue, Process
 import queue 
+import time
 from typing import Any, List, Dict, Tuple
 import uuid
 
@@ -36,6 +37,8 @@ class PicklablePipelineComponent(ABC):
         return self.__class__()
     
 class PipelPool:
+    __out_queue_external_init: bool
+    __job_timeout: float
     component: PicklablePipelineComponent
     len_workers: int
     in_queue: Queue
@@ -43,22 +46,36 @@ class PipelPool:
     event_queue: Queue
     workers: List[Process]
     
-    def __init__(self, component:PicklablePipelineComponent, *args, **kwargs):
-        self.__num_workers = kwargs.get('num_workers') or 5
+    
+    def __init__(
+            self, component:PicklablePipelineComponent,
+            num_workers = 1,
+            job_timeout = 1,
+            out_queue = None,
+            event_queue = None,
+        ):
+        # Flag to know if out_queue lifetime is externally managed
+        self.__out_queue_external_init = True if out_queue else False
+        # seconds to wait for jobs and then to check if the worker should be deleted
+        self.__job_timeout = job_timeout
         self.component = component
-        self.out_queue = kwargs.get('out_queue') or Queue()
-        self.event_queue = kwargs.get('event_queue') or Queue()
-        
+        self.event_queue = event_queue or Queue()
+        self.out_queue = out_queue or Queue()
         self.in_queue = Queue()
         self.workers = []
-        
-        self.__init_workers()
-            
+        self.__init_workers(num_workers)
+    
     @staticmethod
-    def _pool_connector(func, in_queue: Queue, out_queue:Queue, event_queue:Queue):
+    def _pool_connector(
+        func,
+        in_queue: Queue,
+        out_queue:Queue,
+        event_queue:Queue,
+        job_timeout:float
+    ):
         while True:
             try:
-                job = in_queue.get(timeout=1)
+                job = in_queue.get(timeout=job_timeout)
                 __input_tup, __input_dic = job
                 tup, dic = func(*__input_tup, **__input_dic)
                 out_queue.put((tup, dic))
@@ -69,66 +86,94 @@ class PipelPool:
                 break
             except queue.Empty:
                 pass
-            
+            time.sleep(0.01)
         
     def put(self, *args, **kwargs) -> None:
         self.in_queue.put((args, kwargs))  
         
     def get(self) -> Tuple[Tuple[Any], Dict[str, Any]]:
-        """
-            Returns one output from the queue
-        """
+        """Returns one output from the queue"""
         return self.out_queue.get()
     
-    def __init_workers(self) -> None:
-        for _ in range(self.__num_workers):
+    def __init_workers(self, num_workers: int) -> None:
+        for _ in range(num_workers):
             proc = Process(target=self._pool_connector, 
-                           args=(self.component, self.in_queue, self.out_queue, self.event_queue)
+                           args=(self.component.deepcopy(), 
+                                 self.in_queue,
+                                 self.out_queue,
+                                 self.event_queue,
+                                 self.__job_timeout)
                     )
             proc.start()
             self.workers.append(proc)
 
-    def refresh(self, num_workers=0) -> Tuple[Queue, Queue]:
-        """
-            Closes the Pool, clears the workers list and reinits them
-            Returns the input and output queues
-        """
+    def refresh(self, 
+                num_workers = 1,
+                out_queue = None
+            ) -> None:
         self.close()
-        self.workers.clear()
-        self.__num_workers = num_workers
-        self.__init_workers()
-        return self.in_queue, self.out_queue
+        
+        # refresh using an external out_queue or not
+        self.__out_queue_external_init = True if out_queue else False
+        self.out_queue = out_queue or Queue()
+        self.in_queue = Queue()
+        self.event_queue = Queue()
+        self.__init_workers(num_workers)
 
     def close(self):
-        self.remove_workers(self.__num_workers)
+        self.remove_workers(len(self.workers))
+        try:
+            self.in_queue.close() 
+            self.in_queue.join_thread()
+            self.event_queue.close()
+            self.event_queue.join_thread()
+        
+            if not self.__out_queue_external_init:
+                self.out_queue.close()
+                self.out_queue.join_thread()
+        except:
+            pass
 
     def remove_workers(self, amount:int):
         """Terminates the workers gracefully"""
-        amount = min(self.__num_workers, amount)
+        amount = min(len(self.workers), amount)
+        
+        # Put amount times of Nones in the event queue
+        # the signal is then taken by workers and self-terminate
         for _ in range(amount):
             self.event_queue.put(None)
             
-        latch:int = amount
-        while latch > 0:
-            for i, worker in enumerate(self.workers):
-                if not worker.is_alive():
-                    self.workers.pop(i)
-                    latch -= 1
-        self.__num_workers -= amount
+        # Wait for the workers to terminate
+        terminated = []
+        for proc in self.workers:
+            proc.join(timeout=self.__job_timeout + 1)
+            if not proc.is_alive():
+                terminated.append(proc)
+
+        # Pop the terminated workers from the list
+        for t in terminated:
+            self.workers.remove(t)        
 
     def add_workers(self, amount:int):
+        # Validate amount
         if amount <= 0:
             raise ValueError(f'Amount must be positive. Found {amount}')
+        
         for _ in range(amount):
             proc = Process(target=self._pool_connector, 
-                args=(self.component, self.in_queue, self.out_queue, self.event_queue)
-                    )
+                args=(
+                    self.component.deepcopy(),
+                    self.in_queue,
+                    self.out_queue,
+                    self.event_queue,
+                    self.__job_timeout
+                )
+            )
             proc.start()
             self.workers.append(proc)
-        self.__num_workers += amount
 
     def __len__(self):
-        return self.__num_workers
+        return len(self.workers)
     
     def __enter__(self):
         return self
