@@ -2,8 +2,6 @@ from typing import List
 from multiprocessing import Queue
 from .pool_component import PipelPool
 
-
-
 class ManagedPipeline():
     """Sequential pipeline of PipelPools"""
     pipes: List[PipelPool]
@@ -37,11 +35,13 @@ class ManagedPipeline():
     def close(self):
         for pipe in self.pipes:
             pipe.close()
-        
     
-    def __update(self):
-        pass
-    
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     def __len__(self):
         return len(self.pipes)
 
