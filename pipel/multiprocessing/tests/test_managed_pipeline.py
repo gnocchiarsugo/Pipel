@@ -100,6 +100,50 @@ def test_managed_pipeline_autoscaling():
         
         # Wait for double time so that the autoscaler has time to do its job
         time.sleep(0.4)
-        print(len(pool.pipe_pools[0]))
         assert len(pool.pipe_pools[0]) > 1
+        
+def test_managed_pipeline_autoscaling_scaledown_bottomline():
+    """Scaledown does scales until there is only one process running"""
+    scaleup = '[q > 200 for q in qsize]'
+    
+    # This is always true
+    scaledown = '[q <= 10 for q in qsize]'
+    with ManagedPipeline([
+        PipelPool(LongAdder()),
+    ]) as pool:
+        pool.start_autoscaling(
+            scaleup_cond=scaleup,
+            scaledown_cond=scaledown,
+            update_every=0.2
+        )
+        for i in range(5):
+            pool.put(i)
+        
+        # Wait for double time so that the autoscaler has time to do its job
+        time.sleep(0.4)
+        assert len(pool.pipe_pools[0]) == 1
+
+def test_managed_pipeline_autoscaling_close():
+    scaleup = '[q > 2 for q in qsize]'
+    scaledown = '[q < 1 for q in qsize]'
+    with ManagedPipeline([
+        PipelPool(LongAdder()),
+    ]) as pool:
+        pool.start_autoscaling(
+            scaleup_cond=scaleup,
+            scaledown_cond=scaledown,
+            update_every=0.1
+        )
+        for i in range(10):
+            pool.put(i)
+        
+        # Wait for double time so that the autoscaler has time to do its job
+        time.sleep(0.3)
+        pool.close_autoscaling()
+        
+        # Wait the update time
+        time.sleep(0.4)
+        assert not pool.is_autoscaling_running()
+        print(len(pool.pipe_pools[0]))
+        assert len(pool.pipe_pools[0]) > 1        
         

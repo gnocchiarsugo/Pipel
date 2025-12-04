@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from multiprocessing import Queue, Process
 import queue 
 import time
-from typing import Any, List, Dict, Tuple
+from typing import Any, List, Dict, Tuple, Optional
 import uuid
 
 from ..pipel_types import EXEC_MODE
@@ -116,9 +116,13 @@ class PipelPool:
     def refresh(self, 
                 num_workers = 1,
                 in_queue = None,
-                out_queue = None
+                out_queue = None,
+                component: Optional[PicklablePipelineComponent] = None
             ) -> None:
         self.close()
+        
+        if component:
+            self.component = component
         
         # refresh using an external out_queue or not
         self.__out_queue_external_init = True if out_queue else False

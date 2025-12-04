@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import time
 from multiprocessing import Queue, Process, Event
 from multiprocessing.synchronize import Event as Event_t
@@ -14,6 +14,10 @@ class ManagedPipeline:
     __autoscaler_event: Event_t
     __out_queue_external_init: bool
     
+    autoscaling_bottomline: List[Optional[int]]
+    autoscaling_upperline: List[Optional[int]]
+    
+    
     def __init__(self, pipe_pools:List[PipelPool], in_queue:Queue=None, out_queue:Queue=None):
         self.__in_queue_external_init = True if in_queue else False
         in_queue = in_queue or Queue()
@@ -26,7 +30,9 @@ class ManagedPipeline:
         # Autoscaler init
         self.__autoscaler = None
         self.__autoscaler_event = None
-    
+        self.autoscaling_bottomline = [1] * len(self)
+        self.autoscaling_upperline = [None] * len(self)
+        
     def put(self, *args, **kwargs):
         self.queues[0].put((args, kwargs))
 
@@ -94,10 +100,24 @@ class ManagedPipeline:
     def remove_worker(self, component_index: int, amount:int = 1):
         self.pipe_pools[component_index].remove_workers(amount)
     
-    def start_autoscaling(self, scaleup_cond, scaledown_cond, update_every:int = 1):
+    def start_autoscaling(self, 
+                          scaleup_cond, 
+                          scaledown_cond,
+                          update_every:int = 1,
+                          bottom_line: List[Optional[int]] = [None],
+                          upper_line: List[Optional[int]] = [None]
+                        ):
+        if bottom_line[0]:
+            self.autoscaling_bottomline = bottom_line
+        if upper_line[0]:
+            self.autoscaling_upperline = upper_line
+        assert len(self.autoscaling_bottomline) == len(self), "Size of bottom_line must be the same as the number of pipes"
+        assert len(self.autoscaling_upperline) == len(self), "Size of upper_line must be the same as the number of pipes"
+        
+        # Register the bottom lines, they dont exist if start_autoscaling is not called
         self.__autoscaler_event = Event()
         self.__autoscaler = Thread(
-            target=self.autoscaling,
+            target=self.__autoscaling,
             args=(
                 self.queues,
                 self.pipe_pools,
@@ -105,18 +125,10 @@ class ManagedPipeline:
                 scaledown_cond,
                 update_every,
                 self.__autoscaler_event,
+                self.autoscaling_bottomline,
+                self.autoscaling_upperline
             )
         )
-        # self.__autoscaler = Process(
-        #     target=self.autoscaling,
-        #     args=(
-        #         self.queues,
-        #         self.pipe_pools,
-        #         scaleup_cond,
-        #         scaledown_cond,
-        #         update_every
-        #     )
-        # )
         self.__autoscaler.start()
     
     def close_autoscaling(self):
@@ -124,14 +136,21 @@ class ManagedPipeline:
         self.__autoscaler_event.set()
     
     @staticmethod
-    def autoscaling(queues: List[Queue], 
+    def __autoscaling(queues: List[Queue], 
                     pipes: List[PipelPool],
                     scaleup_cond: List[bool],                    
                     scaledown_cond: List[bool],                    
                     update_every: float,
-                    termination_event: Event_t
+                    termination_event: Event_t,
+                    bottomline: List[Optional[int]],
+                    upperline: List[Optional[int]],
                 ):
-        """This process is termiated by killing it"""
+        """
+            If a PipelPool is init with a lower num_workers than its bottomline:
+            1. That's on you
+            2. Workers are added only if the upscale condition is triggered
+            3. Even if the downscale is triggered, the num_workers will not be decreased
+        """
         safe_globals = {
                 "__builtins__": {
                     "all": all,
@@ -153,12 +172,22 @@ class ManagedPipeline:
                     continue
                 else:
                     if up:
-                        pipes[i].add_workers(1)
+                        if upperline[i]:
+                            if len(pipes[i]) + 1 <= upperline[i]:
+                                print('added')
+                                pipes[i].add_workers(1)
+                        else:
+                            pipes[i].add_workers(1)
+                            
                     if down:
                         # Remove worker only if there are more than one
-                        if len(pipes[i]) > 1:
+                        if len(pipes[i]) - 1 >= bottomline[i]:
                             pipes[i].remove_workers(1)
+                            
             time.sleep(update_every)
+      
+    def is_autoscaling_running(self) -> bool:
+        return self.__autoscaler.is_alive()
                         
     def __enter__(self):
         return self
