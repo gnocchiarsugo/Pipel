@@ -52,6 +52,11 @@ def test_pool_long_close():
     assert not adder_pool.workers
     assert len(adder_pool) == 0
     
+def test_pool_long_close_idempotency():
+    adder_pool = PipelPool(LongAdder())
+    adder_pool.close()
+    adder_pool.close()
+    
 def test_adder_pool_put():
     adder_pool = PipelPool(Adder())
     input_data:int = 10

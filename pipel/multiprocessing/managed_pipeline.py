@@ -2,7 +2,7 @@ from typing import List
 from multiprocessing import Queue
 from .pool_component import PipelPool
 
-class ManagedPipeline():
+class ManagedPipeline:
     """Sequential pipeline of PipelPools"""
     pipe_pools: List[PipelPool]
     queues: List[Queue] # queues[0] -> first module -> queues[1] -> second module -> queues[2] -> ...
@@ -71,6 +71,19 @@ class ManagedPipeline():
         if not self.__out_queue_external_init:
             self.queues[-1].close()
             self.queues[-1].join_thread()
+    
+    # Add worker API
+    def add_worker(self, component_index: int, amount:int = 1):
+        self.pipe_pools[component_index].add_workers(amount)
+    
+    # Remove worker API
+    def remove_worker(self, component_index: int, amount:int = 1):
+        self.pipe_pools[component_index].remove_workers(amount)
+    
+    
+    
+    
+    
     
     def __enter__(self):
         return self

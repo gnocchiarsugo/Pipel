@@ -68,3 +68,11 @@ def test_managed_pipeline_refresh():
     in_queue.join_thread()
     out_queue.close()
     out_queue.join_thread()
+    
+def test_managed_pipeline_close_idempotency():
+    managed_pipeline = ManagedPipeline([
+        PipelPool(Adder(), num_workers=1),
+        PipelPool(Multiplier(), num_workers=1),
+    ])
+    managed_pipeline.close()
+    managed_pipeline.close()

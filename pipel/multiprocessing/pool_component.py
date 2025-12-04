@@ -47,7 +47,6 @@ class PipelPool:
     workers: List[Process]
     STOP_TOKEN:str = 'STOP_TOKEN'
         
-    
     def __init__(
             self, component:PicklablePipelineComponent,
             num_workers = 1,
@@ -70,9 +69,9 @@ class PipelPool:
     def _pool_connector(
         func,
         in_queue: Queue,
-        out_queue:Queue,
-        event_queue:Queue,
-        job_timeout:float,
+        out_queue: Queue,
+        event_queue: Queue,
+        job_timeout: float,
         stop_token: str
     ):
         while True:
