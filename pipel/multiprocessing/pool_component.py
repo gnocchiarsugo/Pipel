@@ -9,7 +9,7 @@ from ..pipel_types import EXEC_MODE
 
 class PicklablePipelineComponent(ABC):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         self.id = uuid.uuid4().hex  
         
     def __call__(self, *args, exec_mode:EXEC_MODE='sync', **kwargs):
@@ -45,7 +45,8 @@ class PipelPool:
     out_queue: Queue
     event_queue: Queue
     workers: List[Process]
-    
+    STOP_TOKEN:str = 'STOP_TOKEN'
+        
     
     def __init__(
             self, component:PicklablePipelineComponent,
@@ -71,7 +72,8 @@ class PipelPool:
         in_queue: Queue,
         out_queue:Queue,
         event_queue:Queue,
-        job_timeout:float
+        job_timeout:float,
+        stop_token: str
     ):
         while True:
             try:
@@ -82,8 +84,9 @@ class PipelPool:
             except queue.Empty:
                 pass
             try:
-                event_queue.get(block=False)
-                break
+                job = event_queue.get(block=False)
+                if job == stop_token:
+                    break
             except queue.Empty:
                 pass
             time.sleep(0.01)
@@ -102,7 +105,9 @@ class PipelPool:
                                  self.in_queue,
                                  self.out_queue,
                                  self.event_queue,
-                                 self.__job_timeout)
+                                 self.__job_timeout,
+                                 self.STOP_TOKEN
+                            )
                     )
             proc.start()
             self.workers.append(proc)
@@ -142,29 +147,28 @@ class PipelPool:
         # Put amount times of Nones in the event queue
         # the signal is then taken by workers and self-terminate
         for _ in range(amount):
-            self.event_queue.put(None)
+            self.event_queue.put(self.STOP_TOKEN)
             
         terminated = []
         if force:
             for i in range(amount):
                 self.workers[i].kill()
-                terminated.append(self.workers[i])
+                terminated.append(i)
         else:
             # Wait for the workers to terminate
             latch:int = amount
             while latch > 0:
-                for proc in self.workers:
+                terminated = []
+                for i, proc in enumerate(self.workers):
                     proc.join(timeout=self.__job_timeout + 1)
                     if not proc.is_alive():
-                        terminated.append(proc)
+                        terminated.append(i)
                         latch -= 1
                     else:
                         continue
-            
 
         # Pop the terminated workers from the list
-        for t in terminated:
-            self.workers.remove(t)        
+        self.workers = [worker for i, worker in enumerate(self.workers) if i not in terminated]
 
     def add_workers(self, amount:int):
         # Validate amount
@@ -178,7 +182,8 @@ class PipelPool:
                     self.in_queue,
                     self.out_queue,
                     self.event_queue,
-                    self.__job_timeout
+                    self.__job_timeout,
+                    self.STOP_TOKEN
                 )
             )
             proc.start()
