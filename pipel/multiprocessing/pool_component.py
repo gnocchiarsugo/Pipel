@@ -40,9 +40,11 @@ class PipelPool:
     __out_queue_external_init: bool
     __job_timeout: float
     component: PicklablePipelineComponent
-    len_workers: int
     in_queue: Queue
     out_queue: Queue
+    # It's possible to substitute the event queue with a list of multiproc.Events
+    # But if we want to send other signales from the workers we can
+    #TODO: revisit this at a later time
     event_queue: Queue
     workers: List[Process]
     STOP_TOKEN:str = 'STOP_TOKEN'

@@ -1,8 +1,14 @@
+import time
 from multiprocessing import Queue
 from pipel.multiprocessing import ManagedPipeline, PipelPool, PicklablePipelineComponent
 
 class Adder(PicklablePipelineComponent):
     def _run(self, x):
+        return (x + 2,), {}
+
+class LongAdder(PicklablePipelineComponent):
+    def _run(self, x):
+        time.sleep(2)
         return (x + 2,), {}
 
 class Multiplier(PicklablePipelineComponent):
@@ -76,3 +82,24 @@ def test_managed_pipeline_close_idempotency():
     ])
     managed_pipeline.close()
     managed_pipeline.close()
+    
+    
+def test_managed_pipeline_autoscaling():
+    scaleup = '[q > 2 for q in qsize]'
+    scaledown = '[q < 1 for q in qsize]'
+    with ManagedPipeline([
+        PipelPool(LongAdder()),
+    ]) as pool:
+        pool.start_autoscaling(
+            scaleup_cond=scaleup,
+            scaledown_cond=scaledown,
+            update_every=0.2
+        )
+        for i in range(10):
+            pool.put(i)
+        
+        # Wait for double time so that the autoscaler has time to do its job
+        time.sleep(0.4)
+        print(len(pool.pipe_pools[0]))
+        assert len(pool.pipe_pools[0]) > 1
+        

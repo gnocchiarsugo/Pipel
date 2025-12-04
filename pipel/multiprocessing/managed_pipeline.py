@@ -1,11 +1,17 @@
 from typing import List
-from multiprocessing import Queue
+import time
+from multiprocessing import Queue, Process, Event
+from multiprocessing.synchronize import Event as Event_t
+from threading import Thread
 from .pool_component import PipelPool
 
 class ManagedPipeline:
     """Sequential pipeline of PipelPools"""
     pipe_pools: List[PipelPool]
     queues: List[Queue] # queues[0] -> first module -> queues[1] -> second module -> queues[2] -> ...
+    __autoscaler: Process
+    # Signals the autoscaler to termiante
+    __autoscaler_event: Event_t
     __out_queue_external_init: bool
     
     def __init__(self, pipe_pools:List[PipelPool], in_queue:Queue=None, out_queue:Queue=None):
@@ -16,6 +22,10 @@ class ManagedPipeline:
         self.pipe_pools = pipe_pools
         self.queues = []
         self.__init_queues(in_queue=in_queue, out_queue=out_queue)
+        
+        # Autoscaler init
+        self.__autoscaler = None
+        self.__autoscaler_event = None
     
     def put(self, *args, **kwargs):
         self.queues[0].put((args, kwargs))
@@ -59,6 +69,10 @@ class ManagedPipeline:
         self.pipe_pools[-1].refresh(in_queue=self.queues[-2], out_queue=self.queues[-1])
     
     def close(self):
+        # Can set the __autoscaler_event to None in the __init__, that would add a None
+        # debatable as to which is better
+        if self.__autoscaler_event:
+            self.close_autoscaling()
         for pipe in self.pipe_pools:
             pipe.close()
         for q in self.queues[1:-1]:
@@ -71,7 +85,7 @@ class ManagedPipeline:
         if not self.__out_queue_external_init:
             self.queues[-1].close()
             self.queues[-1].join_thread()
-    
+            
     # Add worker API
     def add_worker(self, component_index: int, amount:int = 1):
         self.pipe_pools[component_index].add_workers(amount)
@@ -80,11 +94,72 @@ class ManagedPipeline:
     def remove_worker(self, component_index: int, amount:int = 1):
         self.pipe_pools[component_index].remove_workers(amount)
     
+    def start_autoscaling(self, scaleup_cond, scaledown_cond, update_every:int = 1):
+        self.__autoscaler_event = Event()
+        self.__autoscaler = Thread(
+            target=self.autoscaling,
+            args=(
+                self.queues,
+                self.pipe_pools,
+                scaleup_cond,
+                scaledown_cond,
+                update_every,
+                self.__autoscaler_event,
+            )
+        )
+        # self.__autoscaler = Process(
+        #     target=self.autoscaling,
+        #     args=(
+        #         self.queues,
+        #         self.pipe_pools,
+        #         scaleup_cond,
+        #         scaledown_cond,
+        #         update_every
+        #     )
+        # )
+        self.__autoscaler.start()
     
+    def close_autoscaling(self):
+        # Sets the autoscaler termination event
+        self.__autoscaler_event.set()
     
-    
-    
-    
+    @staticmethod
+    def autoscaling(queues: List[Queue], 
+                    pipes: List[PipelPool],
+                    scaleup_cond: List[bool],                    
+                    scaledown_cond: List[bool],                    
+                    update_every: float,
+                    termination_event: Event_t
+                ):
+        """This process is termiated by killing it"""
+        safe_globals = {
+                "__builtins__": {
+                    "all": all,
+                    "any": any,
+                }
+        }
+        while True:
+            # Termination check
+            if termination_event.is_set():
+                break
+            # The last queue is the output queue
+            safe_locals = {"qsize": [q.qsize() for q in queues[:-1]]}   
+            up_flag = eval(scaleup_cond, safe_globals, safe_locals)
+            down_flag = eval(scaledown_cond, safe_globals, safe_locals)
+            for i, (up, down) in enumerate(zip(up_flag, down_flag)):
+                if up == down == True:
+                    # Contradictory signal: Do nothing
+                    # TODO: Log the error
+                    continue
+                else:
+                    if up:
+                        pipes[i].add_workers(1)
+                    if down:
+                        # Remove worker only if there are more than one
+                        if len(pipes[i]) > 1:
+                            pipes[i].remove_workers(1)
+            time.sleep(update_every)
+                        
     def __enter__(self):
         return self
 
