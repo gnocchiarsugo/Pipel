@@ -1,5 +1,15 @@
-from typing import Literal
+from typing import Literal, Tuple, Any, Dict
+from dataclasses import dataclass
 
 EXEC_MODE = Literal['sync', 'async']
 
-__all__ = ['EXEC_MODE']
+@dataclass
+class PipelData:
+    args: Tuple[Any]
+    kwargs: Dict[str, Any]
+
+
+__all__ = [
+    'EXEC_MODE', 
+    'PipelData'
+]
