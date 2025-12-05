@@ -76,7 +76,6 @@ class PipelPool:
         self.workers = []
         self._add_workers(num_workers)
     
-    
     @staticmethod
     def _pool_connector(
         func,
@@ -126,25 +125,8 @@ class PipelPool:
         out_queues: Optional[List[Queue]] = None
     ):
         """Initializes or creates the data queues"""
-        
-        self.in_queues = []
-        self.out_queues = []
-        
-        
         self.in_queues, self._in_queue_external_init = (in_queues, True) if in_queues else ([Queue()], False)
-        # if in_queues:
-        #     self.in_queues = in_queues
-        #     self._in_queue_external_init = True
-        # else:
-        #     self.in_queues = [Queue()]
-        #     self._in_queue_external_init = False
         self.out_queues, self._out_queue_external_init = (out_queues, True) if out_queues else ([Queue()], False)
-        # if out_queues:
-        #     self.out_queues = out_queues
-        #     self._out_queue_external_init = True
-        # else:
-        #     self.out_queues = [Queue()]
-        #     self._out_queue_external_init = False
 
     def _close_internal_data_queues(self):
         if not self._in_queue_external_init:
@@ -178,6 +160,21 @@ class PipelPool:
         """
         return self.out_queues[index].get()
     
+    def refresh(
+        self,
+        in_queues: Optional[List[Queue]] = None,
+        out_queues: Optional[List[Queue]] = None,
+        event_queue: Optional[Queue] = None
+    ):
+        self.remove_workers(len(self))
+        if out_queues:
+            self.out_queues = out_queues
+        if in_queues:
+            self.in_queues = in_queues
+        if event_queue:
+            self.event_queue = event_queue
+        self._add_workers(1)
+    
     def change_component(self, 
                 component: PicklablePipelineComponent,
                 num_workers: int = 1,
@@ -187,25 +184,14 @@ class PipelPool:
                 force: bool = False
             ) -> None:
         self.remove_workers(len(self), force=force)
-        # self._close_internal_data_queues()
-        # self._close_event_queue()
-        
         self.component = component
+        self.refresh(
+            in_queues=in_queues,
+            out_queues=out_queues,
+            event_queue=event_queue
+        )
         
-        # self._init_data_queues(
-        #     in_queues=in_queues,
-        #     out_queues=out_queues
-        # )
-        # self.event_queue = event_queue or Queue()
-        
-        if out_queues:
-            self.out_queues = out_queues
-        if in_queues:
-            self.in_queues = in_queues
-        if event_queue:
-            self.event_queue = event_queue
-        
-        self._add_workers(num_workers)
+        self._add_workers(num_workers - 1)
 
     def close(self, force: bool = False):
         if len(self):
@@ -214,8 +200,8 @@ class PipelPool:
         self._close_event_queue()
 
     def remove_workers(self, amount: int, force: bool = False):
-        if amount <= 0:
-            raise ValueError(f'Amount must be strictly positive. Found {amount}')
+        if amount < 0:
+            raise ValueError(f'Amount must be non negative. Found {amount}')
         
         amount = min(len(self.workers), amount)
         for _ in range(amount):
@@ -237,8 +223,8 @@ class PipelPool:
 
     def add_workers(self, amount: int):
         # Validate amount
-        if amount <= 0:
-            raise ValueError(f'Amount must be strictly positive. Found {amount}')
+        if amount < 0:
+            raise ValueError(f'Amount must be non negative. Found {amount}')
         
         self._add_workers(amount)
 

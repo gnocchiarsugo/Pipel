@@ -105,6 +105,12 @@ def test_pool_add_worker():
         adder_pool.add_workers(1)
         assert len(adder_pool) == 2
     
+def test_pool_add_zero_worker():
+    with PipelPool(Adder()) as adder_pool:
+        assert len(adder_pool) == 1
+        adder_pool.add_workers(0)
+        assert len(adder_pool) == 1
+    
 def test_pool_remove_worker():
     with PipelPool(Adder()) as adder_pool:
         adder_pool.add_workers(2)
@@ -113,6 +119,15 @@ def test_pool_remove_worker():
         adder_pool.remove_workers(2)
         time.sleep(0.5)
         assert len(adder_pool) == 1
+        
+def test_pool_remove_zero_worker():
+    with PipelPool(Adder()) as adder_pool:
+        adder_pool.add_workers(2)
+        time.sleep(0.5)
+        assert len(adder_pool) == 3
+        adder_pool.remove_workers(0)
+        time.sleep(0.5)
+        assert len(adder_pool) == 3
 
 def test_pool_event_queue():
     e = Queue()
