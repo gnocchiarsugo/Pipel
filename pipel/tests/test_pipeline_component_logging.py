@@ -1,27 +1,42 @@
 import pytest
 from pipel import UnsafePipelineComponent, PipelineComponent
+from pipel import PipelData
 
 class Adder(UnsafePipelineComponent):
     
-    def _run(self, x, *args, **kwargs):
-        return (x + 2,), {}
+    def _run(self, x):
+        return PipelData(
+            args = (x + 2,),
+            kwargs = {}
+        )
     
-    def _a_run(self, x, *args, **kwargs):
-        return (x + 2,), {}
+    def _a_run(self, x):
+        return PipelData(
+            args = (x + 2,),
+            kwargs = {}
+        )
     
 class SafeAdder(PipelineComponent):
     
-    def validate_input(self, *args, **kwargs):
-        assert 1 == 1
+    def validate_input(self, data: PipelData):
+        for d in data.args:
+            assert isinstance(d, int)
         
-    def validate_output(self, *args, **kwargs):
-        assert 1 == 1
+    def validate_output(self, out_data: PipelData):
+        for d in out_data.args:
+            assert isinstance(d, int)
         
-    def _run(self, x, *args, **kwargs):
-        return (x + 2,), {}
+    def _run(self, x):
+        return PipelData(
+            args = (x + 2,),
+            kwargs = {}
+        )
     
-    def _a_run(self, x, *args, **kwargs):
-        return (x + 2,), {}
+    def _a_run(self, x):
+        return PipelData(
+            args = (x + 2,),
+            kwargs = {}
+        )
 
 class CustomLogger():
     events: list
@@ -29,7 +44,7 @@ class CustomLogger():
     def __init__(self):
         self.events = []
     
-    def info(self, msg, *args, **kwargs):
+    def info(self, msg):
         self.events.append(msg)
         
     def __repr__(self):
@@ -54,7 +69,11 @@ def test_pipeline_component_logger_events_existance():
 def test_pipeline_component_logger_events():
     logger = CustomLogger()
     adder = SafeAdder(logger=logger)
-    adder(1)
+    input_data = PipelData(
+        args = (1,),
+        kwargs = {}
+    )
+    adder(input_data)
     assert adder.logger.events == [
         f'Validating input to {repr(adder)}',
         'Valid input',

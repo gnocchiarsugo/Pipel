@@ -1,5 +1,6 @@
 import pytest
-from pipel import SequentialPipeline, PipelineComponent
+from pipel import SequentialPipeline, PipelineComponent, UnsafePipelineComponent, PipelData
+
 
 """
     Advanced because we set a way to know when pipes are equal.
@@ -7,13 +8,7 @@ from pipel import SequentialPipeline, PipelineComponent
 """
 
 
-class Adder(PipelineComponent):
-    
-    def validate_input(self, *args, **kwargs):
-        assert 1 == 1
-    
-    def validate_output(self, *args, **kwargs):
-        assert 1 == 1
+class Adder(UnsafePipelineComponent):
     
     def __eq__(self, value):
         if not isinstance(value, Adder):
@@ -21,19 +16,19 @@ class Adder(PipelineComponent):
         else:
             return True if self.id == value.id else False
     
-    def _run(self, x, *args, **kwargs):
-        return (x + 2,), {}
+    def _run(self, x):
+        return PipelData(
+            args = (x + 2,),
+            kwargs = {}
+        )
     
-    def _a_run(self, x, *args, **kwargs):
-        return (x + 2,), {}
+    def _a_run(self, x):
+        return PipelData(
+            args = (x + 2,),
+            kwargs = {}
+        )
     
-class Multiplier(PipelineComponent):
-
-    def validate_input(self, *args, **kwargs):
-        assert 1 == 1
-
-    def validate_output(self, *args, **kwargs):
-        assert 1 == 1
+class Multiplier(UnsafePipelineComponent):
 
     def __eq__(self, value):
         if not isinstance(value, Multiplier):
@@ -41,11 +36,17 @@ class Multiplier(PipelineComponent):
         else:
             return True if self.id == value.id else False
 
-    def _run(self, x, *args, **kwargs):
-        return (x * 10,), {}
+    def _run(self, x):
+        return PipelData(
+            args = (x * 10,),
+            kwargs = {}
+        )
 
-    def _a_run(self, x, *args, **kwargs):
-        return (x * 10,), {}  
+    def _a_run(self, x):
+        return PipelData(
+            args = (x * 10,),
+            kwargs = {}
+        )
 
 @pytest.fixture
 def simple_pipeline() -> SequentialPipeline:

@@ -1,37 +1,38 @@
 from abc import ABC, abstractmethod
 from typing import List, Any, Tuple, Dict
 from typing_extensions import override
-from .pipeline_component import PipelineComponent, UnsafePipelineComponent
+from .pipeline_component import UnsafePipelineComponent, PipelData
 from .pipel_types import EXEC_MODE
 
 class ConstrainedPipeline(list, ABC):
-    """
-        Overrides fro list common to all pipelines
-    """
+
     @staticmethod
     def __validate_input(input):
         _input = input if isinstance(input, list) else [input]
         for pipe in _input:
-            if not isinstance(pipe, PipelineComponent):
-                return ValueError('All pipe components must be of type PipelineComponent.')
+            if not isinstance(pipe, UnsafePipelineComponent):
+                return ValueError('All pipe components must be of type UnsafePipelineComponent.')
     
-    def __init__(self, pipes: List[PipelineComponent]):
+    def __init__(self, pipes: List[UnsafePipelineComponent]):
         self.__validate_input(pipes)
         super().__init__(pipes)
     
     @override
     def copy(self):
+        """Returns a deepcopy"""
         return self.__class__(super().copy())
     
     @override
     def append(self, item) -> None:
-        self.__validate_input(item)
-        if isinstance(item, list):
-            raise ValueError('Can only append PipeComponents not lists.')
+        """Appends item of type UnsafePipelineComponent"""
+        # self.__validate_input(item)
+        if not isinstance(item, UnsafePipelineComponent):
+            raise ValueError('Can only append UnsafePipelineComponent.')
         super().append(item)
     
     @override
     def extend(self, iterable) -> None:
+        """Appends every elements in the iterable to the list"""
         self.__validate_input(iterable)
         super().extend(iterable)
     
@@ -41,6 +42,8 @@ class ConstrainedPipeline(list, ABC):
 
     @override
     def __setitem__(self, key, item) -> None:
+        if not isinstance(item, UnsafePipelineComponent):
+            raise ValueError('Can only set UnsafePipelineComponent.')
         self.__validate_input(item)
         super().__setitem__(key, item)
     
@@ -78,10 +81,10 @@ class ConstrainedPipeline(list, ABC):
     
     @override
     def __repr__(self) -> str:
-        out = '[\n'
+        out = '['
         for pipe in self:
-            out += f'{repr(pipe)},\n'
-        out += ']\n'
+            out += f'{repr(pipe)},'
+        out += '] '
         out += f'Lenght: {len(self)}'
         return out
     
@@ -91,13 +94,12 @@ class ConstrainedPipeline(list, ABC):
 
 class SequentialPipeline(ConstrainedPipeline):
 
-    def run(self, *args, exec_mode:EXEC_MODE='sync', **kwargs) -> Tuple[Tuple[Any], Dict[str, Any]]:
-        _args: Tuple[Any] = args
-        _kwargs: Dict[str, Any] = kwargs
+    def run(self, data: PipelData, exec_mode:EXEC_MODE = 'sync') -> PipelData:
+        _data: PipelData = data
         for pipe in self:
-            _kwargs.update({'exec_mode':exec_mode})
-            _args, _kwargs = pipe(*_args, **_kwargs)
-        return _args, _kwargs
+            _data.kwargs.update({'exec_mode':exec_mode})
+            _data = pipe(_data)
+        return _data
 
 
 

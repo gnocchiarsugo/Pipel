@@ -1,24 +1,31 @@
 import pytest
 from pipel import PipelineComponent
-from typing import Any
+from pipel import PipelData
+
 
 class Adder(PipelineComponent):
-    input: Any
+    input_data: PipelData
     
-    def validate_input(self, input, *args, **kwargs):
-        self.input = input
-        if input < 1:
+    def validate_input(self, data: PipelData):
+        self.input_data = data
+        if data.args[0] < 1:
             raise ValueError("Input only > 1 allowed")
     
-    def validate_output(self, output, *args, **kwargs):
-        if output != self.input + 2:
+    def validate_output(self, out_data: PipelData):
+        if out_data.args[0] != self.input_data.args[0] + 2:
             raise ValueError("Error: Adder was supposed to +2 the input")
     
-    def _run(self, x, *args, **kwargs):
-        return (x + 2,), {}
+    def _run(self, x):
+        return PipelData(
+            args = (x + 2,),
+            kwargs = {}
+        )
     
-    def _a_run(self, x, *args, **kwargs):
-        return (x + 2,), {}
+    def _a_run(self, x):
+        return PipelData(
+            args = (x + 2,),
+            kwargs = {}
+        )
 
 @pytest.fixture
 def simple_component() -> PipelineComponent:
@@ -26,14 +33,15 @@ def simple_component() -> PipelineComponent:
 
 
 def test_pipeline_component_ingress_validation(simple_component):
+    input_data = PipelData(args = (0,))
     try: 
-        simple_component.run(0)
+        simple_component.run(input_data)
         assert 1 == 0
     except:
         assert 1 == 1
 
 def test_pipeline_component_exit_validation(simple_component):
-    input = 1
-    args, _ = simple_component(input)
-    assert args[0] == 3
+    input_data = PipelData(args = (1,))
+    out_data:PipelData = simple_component(input_data)
+    assert out_data.args[0] == 3
     
