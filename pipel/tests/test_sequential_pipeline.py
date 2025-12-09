@@ -91,11 +91,8 @@ def test_pipeline_remove(simple_pipeline):
     assert simple_pipeline[0] == Multiplier()
 
 def test_pipeline_sort(simple_pipeline):
-    try: 
+    with pytest.raises(expected_exception=NotImplementedError):
         simple_pipeline.sort()
-        assert 1 == 0
-    except:
-        assert 1 == 1
         
 def test_pipeline_len(simple_pipeline):
     assert len(simple_pipeline) == 2

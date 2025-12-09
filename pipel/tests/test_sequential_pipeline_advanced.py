@@ -66,12 +66,9 @@ def test_pipeline_count(simple_pipeline):
     assert simple_pipeline.count(Adder()) == 0
 
 def test_pipeline_remove(simple_pipeline):
-    try:
+    with pytest.raises(expected_exception=ValueError):
         simple_pipeline.remove(Adder())
         ## Adder, given the equality criteria, is not in list
-        assert 1 == 0
-    except ValueError:
-        pass
     assert len(simple_pipeline) == 2
     simple_pipeline.remove(simple_pipeline[0])
     assert len(simple_pipeline) == 1

@@ -34,11 +34,9 @@ def simple_component() -> PipelineComponent:
 
 def test_pipeline_component_ingress_validation(simple_component):
     input_data = PipelData(args = (0,))
-    try: 
-        simple_component.run(input_data)
-        assert 1 == 0
-    except:
-        assert 1 == 1
+    # Denpending on the validation method it can be ValueError or AssertError etc.
+    with pytest.raises(expected_exception=ValueError):
+        simple_component(input_data)
 
 def test_pipeline_component_exit_validation(simple_component):
     input_data = PipelData(args = (1,))
