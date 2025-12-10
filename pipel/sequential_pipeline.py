@@ -1,3 +1,4 @@
+import asyncio
 from abc import ABC, abstractmethod
 from typing import List
 from typing_extensions import override
@@ -97,7 +98,11 @@ class SequentialPipeline(ConstrainedPipeline):
     def run(self, data: PipelData, exec_mode:EXEC_MODE = 'sync') -> PipelData:
         _data: PipelData = data
         for pipe in self:
-            _data = pipe(_data, exec_mode=exec_mode)
+            if exec_mode == 'sync':
+                _data = pipe(_data, exec_mode=exec_mode)
+            else:
+                # Need to wait for the data
+                _data = asyncio.run(pipe(_data, exec_mode=exec_mode))
         return _data
 
 __all__ = [

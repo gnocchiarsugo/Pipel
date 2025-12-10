@@ -23,15 +23,9 @@ class Adder(UnsafePipelineComponent):
     def _run(self, x):
         return PipelData(args=(x + 2,))
     
-    async def _a_run(self, x):
-        return PipelData(args=(x + 2,))
-    
 class Multiplier(UnsafePipelineComponent):
 
     def _run(self, x):
-        return PipelData(args=(x * 10,))
-    
-    async def _a_run(self, x):
         return PipelData(args=(x * 10,))
 
 pipeline = SequentialPipeline([Adder(), Multiplier()])
@@ -45,23 +39,17 @@ print(f'Output = {res.args[0]}')
 ### Initialization
 
 ```python
-from pipel import SequentialPipeline, UnsafePipelineComponent
+from pipel import SequentialPipeline, UnsafePipelineComponent, PipelData
 
 class Adder(UnsafePipelineComponent):
     
     def _run(self, x):
-        return (x + 2,), {}
-    
-    async def _a_run(self, x):
-        return (x + 2,), {}
+        return PipelData(args=(x + 2,))
     
 class Multiplier(UnsafePipelineComponent):
 
     def _run(self, x):
-        return (x * 10,), {}
-    
-    async def _a_run(self, x):
-        return (x * 10,), {}
+        return PipelData(args=(x * 10,))
 
 pipeline = SequentialPipeline([Adder(), Multiplier()])
 ```

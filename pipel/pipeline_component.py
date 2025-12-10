@@ -3,6 +3,7 @@ from typing import Any, Optional
 from .pipel_types import EXEC_MODE
 from functools import lru_cache, wraps
 import uuid
+import types
 from .pipel_types import PipelData
 
 class UnsafePipelineComponent(ABC):
@@ -35,12 +36,12 @@ class UnsafePipelineComponent(ABC):
         def __cached_run(data: PipelData) -> Any:
             return self._run(*data.args, **data.kwargs)
         
-        try:
-            _a_run = getattr(self, '_a_run')
-        except AttributeError:
+        
+        _a_run = getattr(self, '_a_run', None)
+        if _a_run is None:
             async def _a_run(self, *args, **kwargs):
-                return self.run(*args, **kwargs)
-        setattr(self, '_a_run', _a_run)
+                return self._run(*args, **kwargs)
+            setattr(self, '_a_run', types.MethodType(_a_run, self))
         
         
         # Cached a_run
@@ -69,14 +70,6 @@ class UnsafePipelineComponent(ABC):
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement the _run method"
         )
-
-    # async def _a_run(self, *args, **kwargs) -> PipelData:
-    #     """
-    #         Method implemented by the end User
-    #     """
-    #     raise NotImplementedError(
-    #         f"{self.__class__.__name__} must implement the _a_run method"
-    #     )
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(id={self.id}, logger={repr(self.logger)}, cache_size={self.cache_size})'

@@ -108,14 +108,24 @@ def run(self, data: PipelData, exec_mode: EXEC_MODE = 'sync') -> PipelData:
 ## Usage Example
 
 ```python
+from pipel import PipelData, SequentialPipeline, UnsafePipelineComponent
+
+class Adder(UnsafePipelineComponent):
+    
+    def _run(self, x):
+        return PipelData(args=(x + 2,))
+    
+    async def _a_run(self, x):
+        return PipelData(args=(x * 2,))
+    
 # Define a SequentialPipeline
-pipeline = SequentialPipeline([component1, component2, component3])
+pipeline = SequentialPipeline([Adder(), Adder(), Adder()])
 
 # Run synchronously
-result = pipeline.run(PipelData(args=(input_data,)))
+result = pipeline.run(PipelData(args=(4,)))
 
 # Run asynchronously
-result = await pipeline.run(PipelData(args=(input_data,)), exec_mode='async')
+res = pipeline.run(PipelData(args=(4,)), exec_mode='async')
 ```
 
 ---
