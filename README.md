@@ -8,7 +8,7 @@
 ## Features
 
 - **No Dependencies** – There are no dependencies to download
-- **Extreme Validation** – Every step of the Pipeline requires a validation step, both in input and output
+- **Validation** – Every step of the Pipeline requires a validation step, both in input and output
 - **Modular** – I would be doing something wrong if it wasn't modular
 
 ---
@@ -16,27 +16,28 @@
 ## Quick Start
 
 ```python
-from pipel import SequentialPipeline, UnsafePipelineComponent
+from pipel import SequentialPipeline, UnsafePipelineComponent, PipelData
 
 class Adder(UnsafePipelineComponent):
     
     def _run(self, x):
-        return (x + 2,), {}
+        return PipelData(args=(x + 2,))
     
     async def _a_run(self, x):
-        return (x + 2,), {}
+        return PipelData(args=(x + 2,))
     
 class Multiplier(UnsafePipelineComponent):
 
     def _run(self, x):
-        return (x * 10,), {}
+        return PipelData(args=(x * 10,))
     
     async def _a_run(self, x):
-        return (x * 10,), {}
+        return PipelData(args=(x * 10,))
 
 pipeline = SequentialPipeline([Adder(), Multiplier()])
-args, _ = pipeline.run(1)
-print(f'Output = {args[0]}')
+input_data = PipelData(args=(1,))
+res: PipelData = pipeline.run(input_data)
+print(f'Output = {res.args[0]}')
 ```
 
 ## Usage Examples

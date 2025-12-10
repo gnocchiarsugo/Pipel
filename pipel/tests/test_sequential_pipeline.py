@@ -6,13 +6,13 @@ class Adder(UnsafePipelineComponent):
     def __eq__(self, value):
         return True if isinstance(value, Adder) else False
     
-    def _run(self, x, **kwargs):
+    def _run(self, x):
         return PipelData(
             args = (x + 2,),
             kwargs = {}
         )
     
-    def _a_run(self, x, **kwargs):
+    def _a_run(self, x):
         return PipelData(
             args = (x + 2,),
             kwargs = {}
@@ -23,13 +23,13 @@ class Multiplier(UnsafePipelineComponent):
     def __eq__(self, value):
         return True if isinstance(value, Multiplier) else False
 
-    def _run(self, x, **kwargs):
+    def _run(self, x):
         return PipelData(
             args = (x * 10,),
             kwargs = {}
         )
 
-    def _a_run(self, x, **kwargs):
+    def _a_run(self, x):
         return PipelData(
             args = (x * 10,),
             kwargs = {}

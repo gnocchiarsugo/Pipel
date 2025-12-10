@@ -97,8 +97,7 @@ class SequentialPipeline(ConstrainedPipeline):
     def run(self, data: PipelData, exec_mode:EXEC_MODE = 'sync') -> PipelData:
         _data: PipelData = data
         for pipe in self:
-            _data.kwargs.update({'exec_mode':exec_mode})
-            _data = pipe(_data)
+            _data = pipe(_data, exec_mode=exec_mode)
         return _data
 
 __all__ = [
